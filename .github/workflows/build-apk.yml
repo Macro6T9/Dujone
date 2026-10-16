@@ -11,6 +11,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: জিপ ফাইল খোলা
+        run: |
+          ZIP=$(find . -maxdepth 1 -name "*.zip" | head -n 1)
+          if [ -z "$ZIP" ]; then echo "রিপোতে কোনো zip ফাইল পাওয়া যায়নি"; exit 1; fi
+          echo "জিপ পাওয়া গেছে: $ZIP"
+          mkdir -p "$RUNNER_TEMP/proj"
+          unzip -q "$ZIP" -d "$RUNNER_TEMP/proj"
+          PKG=$(find "$RUNNER_TEMP/proj" -name package.json -not -path "*/node_modules/*" | head -n 1)
+          if [ -z "$PKG" ]; then echo "জিপের ভেতরে package.json নেই"; exit 1; fi
+          DIR=$(dirname "$PKG")
+          echo "প্রজেক্ট ফোল্ডার: $DIR"
+          mkdir -p "$GITHUB_WORKSPACE/app"
+          cp -a "$DIR"/. "$GITHUB_WORKSPACE/app/"
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -22,17 +36,23 @@ jobs:
 
       - uses: android-actions/setup-android@v3
 
-      - run: npm install
+      - name: npm ইনস্টল
+        working-directory: app
+        run: npm install
 
-      - run: node setup.js
+      - name: HTML প্যাচ + Android প্রজেক্ট তৈরি
+        working-directory: app
+        run: node setup.js
 
-      - run: chmod +x android/gradlew
+      - name: gradlew এক্সিকিউটেবল
+        working-directory: app
+        run: chmod +x android/gradlew
 
       - name: Debug APK বিল্ড
-        working-directory: android
+        working-directory: app/android
         run: ./gradlew assembleDebug --no-daemon
 
       - uses: actions/upload-artifact@v4
         with:
           name: dujone-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: app/android/app/build/outputs/apk/debug/app-debug.apk
